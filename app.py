@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_chat import message
 from dotenv import load_dotenv
 from langchain.document_loaders import YoutubeLoader
 from langchain.embeddings import OpenAIEmbeddings
@@ -6,7 +7,6 @@ from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-from htmlTemplates import css, bot_template, user_template
 
 def get_documents(video_links):
     loader = YoutubeLoader.from_youtube_url(video_links, add_video_info=True)
@@ -36,47 +36,37 @@ def handle_userinput(user_question):
     response = st.session_state.conversation({'question': user_question})
     st.session_state.chat_history = response['chat_history']
 
-def print_chat():
-    if st.session_state.chat_history:
-        for i, message in enumerate(st.session_state.chat_history):
-            if i % 2 == 0:
-                st.write(user_template.replace(
-                    "{{MSG}}", message.content), unsafe_allow_html=True)
-            else:
-                st.write(bot_template.replace(
-                    "{{MSG}}", message.content), unsafe_allow_html=True)
-
 def main():
     load_dotenv()
-    st.set_page_config(page_title="Chat with YouTube Videos",
+    st.set_page_config(page_title="Chat with YouTube Video",
                        page_icon=":video_camera:")
-    st.write(css, unsafe_allow_html=True)
 
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
+    if "docmeta" not in st.session_state:
+        st.session_state.docmeta = []
 
-    st.header("Chat with YouTube Videos :video_camera:")
+    st.header("Chat with YouTube Video :video_camera:")
 
+    video_container = st.container() 
     chat_container = st.container()    
                 
-    user_question = st.text_input("Ask a question about your YouTube Videos:")
+    user_question = st.text_input("Ask a question about your YouTube Video:")
     if user_question:
         handle_userinput(user_question)
         with chat_container:
-            for i, message in enumerate(st.session_state.chat_history):
+            for i, msg in enumerate(st.session_state.chat_history):
                 if i % 2 == 0:
-                    st.write(user_template.replace(
-                        "{{MSG}}", message.content), unsafe_allow_html=True)
+                    message(msg.content, is_user=True, key=str(i) + '_user')
                 else:
-                    print(message.content)
-                    st.write(bot_template.replace(
-                        "{{MSG}}", message.content.replace("\n", "<br>")), unsafe_allow_html=True)
+                    message(msg.content, key=str(i))
 
-    with st.sidebar:
-        st.subheader("Your videos")
-        video_links = st.text_input("Enter your YouTube Video links here and click on 'Process'")
+    with video_container:
+        st.subheader("Your video")
+        video_links = st.text_input("Enter your YouTube Video link here and click on 'Process'")
+        
         if st.button("Process"):
             with st.spinner("Processing"):
                 # get documents
@@ -88,6 +78,12 @@ def main():
                 # create conversation chain
                 st.session_state.conversation = get_conversation_chain(
                     vectorstore)
+                
+                st.session_state.docmeta = documents[0].metadata
+
+        if (st.session_state.docmeta):
+            st.write("Title: "+st.session_state.docmeta["title"])
+            st.write("Author: "+st.session_state.docmeta["author"])
 
 
 if __name__ == '__main__':
