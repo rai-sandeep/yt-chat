@@ -20,6 +20,8 @@ def get_vectorstore(documents):
 
 
 def get_conversation_chain(vectorstore):
+    st.session_state.chat_history = None
+    
     llm = ChatOpenAI(temperature=0.2)
     
     memory = ConversationBufferMemory(
@@ -46,22 +48,16 @@ def main():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
     if "docmeta" not in st.session_state:
-        st.session_state.docmeta = []
+        st.session_state.docmeta = None
 
     st.header("Chat with YouTube Video :video_camera:")
 
     video_container = st.container() 
-    chat_container = st.container()    
-                
-    user_question = st.text_input("Ask a question about your YouTube Video:")
-    if user_question:
-        handle_userinput(user_question)
-        with chat_container:
-            for i, msg in enumerate(st.session_state.chat_history):
-                if i % 2 == 0:
-                    message(msg.content, is_user=True, key=str(i) + '_user')
-                else:
-                    message(msg.content, key=str(i))
+    chat_container = st.container()
+
+    # Write empty text to chat container to stop duplication
+    # https://github.com/streamlit/streamlit/issues/4652
+    chat_container.write("")  
 
     with video_container:
         st.subheader("Your video")
@@ -84,6 +80,22 @@ def main():
         if (st.session_state.docmeta):
             st.write("Title: "+st.session_state.docmeta["title"])
             st.write("Author: "+st.session_state.docmeta["author"])
+            st.image(st.session_state.docmeta["thumbnail_url"])
+            st.write("")
+
+    with st.form(key='chat_form', clear_on_submit=True):    
+        user_question = st.text_input("Ask a question about your YouTube Video:")
+        ask_button = st.form_submit_button(label='Ask')
+
+    if ask_button and user_question:
+        with st.spinner("Asking"):
+            handle_userinput(user_question)
+            with chat_container:
+                for i, msg in enumerate(st.session_state.chat_history):
+                    if i % 2 == 0:
+                        message(msg.content, is_user=True, key=str(i) + '_user')
+                    else:
+                        message(msg.content, key=str(i))
 
 
 if __name__ == '__main__':
